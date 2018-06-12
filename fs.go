@@ -50,7 +50,7 @@ func NewFSCache(root string) (Cache, error) {
 		hits:           int64(0),
 		misses:         int64(0),
 		mu:             mu,
-		TTL:            10,
+		TTL:            0,
 		FilePerms:      0644,
 		DirectoryPerms: 0755,
 	}
