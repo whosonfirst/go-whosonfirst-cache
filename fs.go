@@ -1,12 +1,11 @@
 package cache
 
-// THIS NEEDS MUTEXES... (20180612/thisisaaronland)
-
 import (
 	"errors"
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 )
 
@@ -15,6 +14,7 @@ type FSCache struct {
 	root   string
 	misses int64
 	hits   int64
+	mu *sync.RWMutex
 }
 
 func NewFSCache(root string) (Cache, error) {
@@ -25,7 +25,7 @@ func NewFSCache(root string) (Cache, error) {
 		return nil, err
 	}
 
-	info, err = os.Stat(abs_root)
+	info, err := os.Stat(abs_root)
 
 	if os.IsNotExist(err) {
 		return nil, errors.New("Root doesn't exist")
@@ -35,16 +35,22 @@ func NewFSCache(root string) (Cache, error) {
 		return nil, errors.New("Root is not a directory")
 	}
 
+	mu := new(sync.RWMutex)
+
 	c := FSCache{
 		root:   abs_root,
 		hits:   int64(0),
 		misses: int64(0),
+		mu:     mu,
 	}
 
 	return &c, nil
 }
 
 func (c *FSCache) Get(key string) (io.ReadCloser, error) {
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	abs_path := filepath.Join(c.root, key)
 	fh, err := os.Open(abs_path)
@@ -60,6 +66,9 @@ func (c *FSCache) Get(key string) (io.ReadCloser, error) {
 
 func (c *FSCache) Set(key string, fh io.ReadCloser) (io.ReadCloser, error) {
 
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	abs_path := filepath.Join(c.root, key)
 	abs_root := filepath.Dir(abs_path)
 
@@ -74,13 +83,13 @@ func (c *FSCache) Set(key string, fh io.ReadCloser) (io.ReadCloser, error) {
 		}
 	}
 
-	out, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
+	out, err := os.OpenFile(abs_path, os.O_RDWR|os.O_CREATE, 0644)
 
 	if err != nil {
 		return nil, err
 	}
 
-	_, err := io.Copy(out, fh)
+	_, err = io.Copy(out, fh)
 
 	out.Close()
 
@@ -92,6 +101,9 @@ func (c *FSCache) Set(key string, fh io.ReadCloser) (io.ReadCloser, error) {
 }
 
 func (c *FSCache) Unset(key string) error {
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	abs_path := filepath.Join(c.root, key)
 	abs_root := filepath.Dir(abs_path)

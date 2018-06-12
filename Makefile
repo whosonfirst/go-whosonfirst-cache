@@ -7,6 +7,7 @@ prep:
 self:   prep rmdeps
 	if test -d src; then rm -rf src; fi
 	mkdir -p src/github.com/whosonfirst/go-whosonfirst-cache
+	cp *.go src/github.com/whosonfirst/go-whosonfirst-cache/
 	cp -r vendor/* src/
 
 rmdeps:
@@ -26,5 +27,7 @@ vendor-deps: rmdeps deps
 
 fmt:
 	go fmt *.go
+	go fmt cmd/*.go
 
 bin: 	self
+	@GOPATH=$(GOPATH) go build -o bin/wof-cache cmd/wof-cache.go
