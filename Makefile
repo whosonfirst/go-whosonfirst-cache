@@ -25,7 +25,6 @@ vendor-deps: rmdeps deps
 	rm -rf src
 
 fmt:
-	go fmt bytes/*.go
 	go fmt *.go
 
 bin: 	self
