@@ -1,10 +1,8 @@
 package cache
 
 import (
-	"errors"
 	"io"
 	_ "log"
-	"strings"
 )
 
 type nopCloser struct {
