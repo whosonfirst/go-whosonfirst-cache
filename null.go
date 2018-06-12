@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"errors"
 	"io"
 	"sync/atomic"
 )
@@ -22,7 +21,7 @@ func NewNullCache() (Cache, error) {
 
 func (c *NullCache) Get(key string) (io.ReadCloser, error) {
 	atomic.AddInt64(&c.misses, 1)
-	return nil, errors.New("CACHE MISS")
+	return nil, new(CacheMiss)
 }
 
 func (c *NullCache) Set(key string, fh io.ReadCloser) (io.ReadCloser, error) {

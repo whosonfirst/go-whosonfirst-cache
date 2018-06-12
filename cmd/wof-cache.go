@@ -68,11 +68,50 @@ func main() {
 		caches = append(caches, c)
 	}
 
+	if len(caches) == 0 {
+		log.Fatal("No caches specified")
+	}
+
 	c, err := cache.NewMultiCache(caches)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	log.Println(c)
+	args := flag.Args()
+
+	if len(args)%2 == 1 {
+		log.Fatal("Arguments not divisible by two (as in 'key -> value')")
+	}
+
+	for i := 0; i < len(args); i += 2 {
+
+		k := args[i]
+		v := args[i+1]
+
+		g, err := cache.GetString(c, k)
+
+		if err != nil && !cache.IsCacheMiss(err) {
+			log.Fatal(err)
+		}
+
+		log.Println("GET", k, v, g)
+
+		s, err := cache.SetString(c, k, v)
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		log.Println("SET", k, v, s)
+
+		v2, err := cache.GetString(c, k)
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		log.Println("GET", k, v, v2)
+	}
+
 }

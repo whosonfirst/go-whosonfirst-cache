@@ -3,8 +3,6 @@ package cache
 // https://godoc.org/github.com/patrickmn/go-cache
 
 import (
-	"bytes"
-	"errors"
 	gocache "github.com/patrickmn/go-cache"
 	"io"
 	"io/ioutil"
@@ -99,17 +97,18 @@ func (c *GoCache) Get(key string) (io.ReadCloser, error) {
 	// to do: timings that don't slow everything down the way
 	// go-whosonfirst-timer does now (20170915/thisisaaronland)
 
-	cache, ok := c.cache.Get(key)
+	data, ok := c.cache.Get(key)
 
 	if !ok {
 		atomic.AddInt64(&c.misses, 1)
-		return nil, errors.New("CACHE MISS")
+		return nil, new(CacheMiss)
 	}
 
 	atomic.AddInt64(&c.hits, 1)
 
-	buf := bytes.NewReader(cache.([]byte))
-	return nopCloser{buf}, nil
+	body := data.([]byte)
+
+	return NewBytesReadCloser(body), nil
 }
 
 func (c *GoCache) Set(key string, fh io.ReadCloser) (io.ReadCloser, error) {
@@ -135,8 +134,7 @@ func (c *GoCache) Set(key string, fh io.ReadCloser) (io.ReadCloser, error) {
 	c.cache.Set(key, body, gocache.DefaultExpiration)
 	atomic.AddInt64(&c.keys, 1)
 
-	r := bytes.NewReader(body)
-	return nopCloser{r}, nil
+	return NewBytesReadCloser(body), nil
 }
 
 func (c *GoCache) Unset(key string) error {
