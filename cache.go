@@ -29,6 +29,8 @@ func IsCacheMiss(e error) bool {
 	switch e.(type) {
 	case *CacheMiss:
 		return true
+	case CacheMiss:
+		return true
 	default:
 		// pass
 	}
