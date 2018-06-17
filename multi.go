@@ -1,7 +1,12 @@
 package cache
 
 import (
+	"bufio"
+	"bytes"
+	"fmt"
 	"io"
+	"io/ioutil"
+	_ "log"
 	"sync"
 )
 
@@ -9,6 +14,29 @@ type MultiCache struct {
 	Cache
 	caches []Cache
 	mu     *sync.RWMutex
+}
+
+type CacheMissMulti struct {
+	error string
+}
+
+func (m CacheMissMulti) Error() string {
+
+	return fmt.Sprintf("ONE OR MORE MULTI CACHE MISSES %s", m.error)
+}
+
+func IsCacheMissMulti(e error) bool {
+
+	switch e.(type) {
+	case *CacheMissMulti:
+		return true
+	case CacheMissMulti:
+		return true
+	default:
+		// pass
+	}
+
+	return false
 }
 
 func NewMultiCache(caches []Cache) (Cache, error) {
@@ -33,44 +61,73 @@ func (mc *MultiCache) Get(key string) (io.ReadCloser, error) {
 	mc.mu.RLock()
 	defer mc.mu.RUnlock()
 
+	missing := false
+
 	for _, c := range mc.caches {
 
 		fh, err = c.Get(key)
 
 		if err != nil {
+
+			if IsCacheMiss(err) {
+				missing = true
+			}
+
 			continue
 		}
 
 		break
 	}
 
+	if missing {
+		err = new(CacheMissMulti)
+	}
+
+	if fh == nil {
+		err = new(CacheMiss)
+	}
+
 	return fh, err
 }
 
+// in advance of requiring a ReadSeekCloser (20180617/thisisaaronland)
+
 func (mc *MultiCache) Set(key string, fh io.ReadCloser) (io.ReadCloser, error) {
 
-	var in io.ReadCloser
-	var out io.ReadCloser
-	var err error
+	var b bytes.Buffer
+	buf := bufio.NewWriter(&b)
 
-	out = fh
+	_, err := io.Copy(buf, fh)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = buf.Flush()
+
+	if err != nil {
+		return nil, err
+	}
+
+	r := bytes.NewReader(b.Bytes())
 
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
 
 	for _, c := range mc.caches {
 
-		in = out
-		out, err = c.Set(key, in)
+		_, err := c.Set(key, ioutil.NopCloser(r))
 
 		if err != nil {
 
 			go mc.Unset(key)
 			return nil, err
 		}
+
+		r.Reset(b.Bytes())
 	}
 
-	return out, nil
+	return ioutil.NopCloser(r), nil
 }
 
 func (mc *MultiCache) Unset(key string) error {
